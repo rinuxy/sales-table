@@ -56,7 +56,7 @@ export function truncateString(str: string, length = 50): string {
  * @param fn - The function to debounce
  * @param delay - The delay in milliseconds (default: 300)
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
   delay = 300
 ): (...args: Parameters<T>) => void {
@@ -94,7 +94,10 @@ export function randomString(length = 8): string {
  * @param array - The array to group
  * @param key - The key to group by
  */
-export function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
+export function groupBy<T extends Record<string, unknown>>(
+  array: T[],
+  key: keyof T
+): Record<string, T[]> {
   return array.reduce((groups, item) => {
     const groupKey = String(item[key])
     return {
@@ -116,10 +119,10 @@ export function deepClone<T>(obj: T): T {
  * Checks if a value is empty (null, undefined, empty string, empty array, or empty object)
  * @param value - The value to check
  */
-export function isEmpty(value: any): boolean {
+export function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) return true
   if (typeof value === 'string') return value.trim().length === 0
   if (Array.isArray(value)) return value.length === 0
-  if (typeof value === 'object') return Object.keys(value).length === 0
+  if (typeof value === 'object') return Object.keys(value as object).length === 0
   return false
 }
