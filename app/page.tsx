@@ -1,9 +1,5 @@
-import SalesTable from './sales-table'
+import SalesTable from "./sales-table"
 
 export default function Home() {
-  return (
-    <main className="min-h-screen">
-      <SalesTable />
-    </main>
-  )
+  return <SalesTable />
 }

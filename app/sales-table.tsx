@@ -25,16 +25,18 @@ import {
 import {
   ChevronDown,
   ChevronUp,
+  Copy,
   Filter,
   LayersIcon,
   MessageSquare,
+  MoreHorizontal,
   PlusCircle,
   Search,
+  Trash2,
 } from "lucide-react"
-import { useTheme } from "next-themes"
-import { Switch } from "@/components/ui/switch"
-import { Moon, Sun } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 // Type for sales data
 type SaleData = {
@@ -121,14 +123,15 @@ const initialSalesData: SaleData[] = [
   },
 ]
 
-export default function Component() {
+export default function SalesTable() {
   const [selectedTab, setSelectedTab] = React.useState("table")
-  const { theme, setTheme } = useTheme()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [filters, setFilters] = React.useState<{ [key: string]: string[] }>({})
   const [groupBy, setGroupBy] = React.useState<keyof SaleData | null>(null)
   const [sortConfig, setSortConfig] = React.useState<{ key: keyof SaleData; direction: 'asc' | 'desc' } | null>(null)
   const [salesData] = React.useState(initialSalesData)
+  const [selectedRows, setSelectedRows] = React.useState<string[]>([])
+  const tableRef = React.useRef<HTMLDivElement>(null)
 
   // Search function
   const searchData = React.useCallback((data: SaleData[]): SaleData[] => {
@@ -208,25 +211,54 @@ export default function Component() {
     )
   }
 
+  // Handle row selection
+  const toggleRowSelection = (id: string) => {
+    setSelectedRows(prev => 
+      prev.includes(id) 
+        ? prev.filter(rowId => rowId !== id)
+        : [...prev, id]
+    )
+  }
+
+  // Handle select all
+  const toggleSelectAll = () => {
+    if (selectedRows.length === processedData.length) {
+      setSelectedRows([])
+    } else {
+      setSelectedRows(processedData.filter((item): item is SaleData => !('isGroupHeader' in item)).map(item => item.id))
+    }
+  }
+
+  // Handle horizontal scroll with fixed first column
+  React.useEffect(() => {
+    const table = tableRef.current
+    if (!table) return
+
+    const handleScroll = () => {
+      const fixedCells = table.querySelectorAll('.fixed-column')
+      fixedCells.forEach((cell) => {
+        if (cell instanceof HTMLElement) {
+          cell.style.transform = `translateX(${table.scrollLeft}px)`
+        }
+      })
+    }
+
+    table.addEventListener('scroll', handleScroll)
+    return () => table.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex flex-col">
       <header className="flex h-14 items-center gap-4 border-b bg-background px-6">
         <h1 className="text-lg font-semibold">Sales</h1>
         <div className="ml-auto flex items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Switch
-              checked={theme === "dark"}
-              onCheckedChange={() => setTheme(theme === "dark" ? "light" : "dark")}
-            />
-            <Moon className="h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          </div>
+          <ThemeToggle />
           <Button variant="ghost" size="icon">
             <MessageSquare className="h-5 w-5" />
           </Button>
         </div>
       </header>
-      <main className="flex-1">
+      <main className="flex-1 overflow-y-auto">
         <div className="border-b">
           <div className="flex flex-col md:flex-row items-center px-4 py-4">
             <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1">
@@ -299,90 +331,105 @@ export default function Component() {
         </div>
         <div className="p-4">
           <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]" onClick={() => handleSort('id')}>
-                    Sales {sortConfig?.key === 'id' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort('createdAt')}>
-                    Created at {sortConfig?.key === 'createdAt' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
-                  </TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Sales Rep</TableHead>
-                  <TableHead onClick={() => handleSort('total')}>
-                    Total {sortConfig?.key === 'total' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
-                  </TableHead>
-                  <TableHead>Sale Status</TableHead>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead>Stock Verification</TableHead>
-                  <TableHead onClick={() => handleSort('completion')}>
-                    Completion {sortConfig?.key === 'completion' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <AnimatePresence>
-                  {processedData.map((sale) => (
-                    <motion.tr
-                      key={sale.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      {'isGroupHeader' in sale ? (
-                        <TableCell colSpan={10} className="font-bold bg-muted">
-                          {sale.id}
-                        </TableCell>
-                      ) : (
-                        <>
-                          <TableCell className="font-medium whitespace-nowrap">{sale.id}</TableCell>
-                          <TableCell className="truncate max-w-[80px] md:max-w-[120px]" title={sale.createdAt}>
-                            {sale.createdAt}
+            <div ref={tableRef} className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px] fixed-column bg-background">
+                      <Checkbox
+                        checked={selectedRows.length === processedData.length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead className="w-[100px]" onClick={() => handleSort('id')}>
+                      Sales {sortConfig?.key === 'id' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
+                    </TableHead>
+                    <TableHead onClick={() => handleSort('createdAt')}>
+                      Created at {sortConfig?.key === 'createdAt' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
+                    </TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Sales Rep</TableHead>
+                    <TableHead onClick={() => handleSort('total')}>
+                      Total {sortConfig?.key === 'total' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
+                    </TableHead>
+                    <TableHead>Sale Status</TableHead>
+                    <TableHead>Workflow</TableHead>
+                    <TableHead>Stock Verification</TableHead>
+                    <TableHead onClick={() => handleSort('completion')}>
+                      Completion {sortConfig?.key === 'completion' && (sortConfig.direction === 'asc' ? <ChevronUp className="inline" /> : <ChevronDown className="inline" />)}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <AnimatePresence>
+                    {processedData.map((sale) => (
+                      <motion.tr
+                        key={sale.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className={selectedRows.includes(sale.id) ? 'bg-accent' : ''}
+                      >
+                        {'isGroupHeader' in sale ? (
+                          <TableCell colSpan={11} className="font-bold bg-muted">
+                            {sale.id}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="truncate max-w-[80px] md:max-w-[100px]" title={sale.client.name}>
-                                {sale.client.name}
-                              </span>
-                              <Badge className="whitespace-nowrap" variant={sale.client.status === "Premium" ? "default" : "secondary"}>
-                                {sale.client.status}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="truncate max-w-[80px] md:max-w-[100px]" title={sale.location}>
-                            {sale.location}
-                          </TableCell>
-                          <TableCell className="truncate max-w-[80px] md:max-w-[100px]" title={sale.salesRep}>
-                            {sale.salesRep}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">{sale.total}</TableCell>
-                          <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.saleStatus}>
-                            <Badge className="truncate w-full" variant="outline">{sale.saleStatus}</Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.workflow}>
-                            <Badge className="truncate w-full" variant="outline">{sale.workflow}</Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.stockVerification}>
-                            <Badge className="truncate w-full" variant="outline">{sale.stockVerification}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1 md:gap-2">
-                              <Progress value={sale.completion} className="w-[30px] sm:w-[40px] md:w-[50px]" />
-                              <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap">
-                                {sale.completion}%
-                              </span>
-                            </div>
-                          </TableCell>
-                        </>
-                      )}
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </TableBody>
-            </Table>
+                        ) : (
+                          <>
+                            <TableCell className="fixed-column bg-background">
+                              <Checkbox
+                                checked={selectedRows.includes(sale.id)}
+                                onCheckedChange={() => toggleRowSelection(sale.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium whitespace-nowrap">{sale.id}</TableCell>
+                            <TableCell className="truncate max-w-[80px] md:max-w-[120px]" title={sale.createdAt}>
+                              {sale.createdAt}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="truncate max-w-[80px] md:max-w-[100px]" title={sale.client.name}>
+                                  {sale.client.name}
+                                </span>
+                                <Badge className="whitespace-nowrap" variant={sale.client.status === "Premium" ? "default" : "secondary"}>
+                                  {sale.client.status}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="truncate max-w-[80px] md:max-w-[100px]" title={sale.location}>
+                              {sale.location}
+                            </TableCell>
+                            <TableCell className="truncate max-w-[80px] md:max-w-[100px]" title={sale.salesRep}>
+                              {sale.salesRep}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{sale.total}</TableCell>
+                            <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.saleStatus}>
+                              <Badge className="truncate w-full" variant="outline">{sale.saleStatus}</Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.workflow}>
+                              <Badge className="truncate w-full" variant="outline">{sale.workflow}</Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[80px] md:max-w-[100px]" title={sale.stockVerification}>
+                              <Badge className="truncate w-full" variant="outline">{sale.stockVerification}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1 md:gap-2">
+                                <Progress value={sale.completion} className="w-[30px] sm:w-[40px] md:w-[50px]" />
+                                <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap">
+                                  {sale.completion}%
+                                </span>
+                              </div>
+                            </TableCell>
+                          </>
+                        )}
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+            </div>
           </Card>
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
@@ -394,6 +441,41 @@ export default function Component() {
           </div>
         </div>
       </main>
+      
+      {/* Action bar for selected rows */}
+      <AnimatePresence>
+        {selectedRows.length > 0 && (
+          <motion.div
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 shadow-lg"
+          >
+            <div className="mx-auto flex max-w-screen-xl items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{selectedRows.length} selected</span>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedRows([])}>
+                  Clear selection
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm">
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy
+                </Button>
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="mr-2 h-4 w-4" />
+                  More
+                </Button>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
